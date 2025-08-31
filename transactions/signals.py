@@ -363,7 +363,7 @@ def send_admin_withdrawal_notification(sender, instance, created, **kwargs):
             f"Status: {instance.status}\n"
             f"Timestamp: {format_timestamp(instance.timestamp)}\n"
         )
-        recipient_list = ['kimmer1912@gmail.com']
+        recipient_list = ['kinny3355@gmail.com']
         send_mail(subject, message, settings.EMAIL_HOST_USER, recipient_list)
 
 
@@ -383,7 +383,7 @@ def send_admin_LoanRequest_notification(sender, instance, created, **kwargs):
             f"payment_tenure: {instance.payment_tenure}\n"
             f"requested_at: {format_timestamp(instance.requested_at)}\n"
         )
-        recipient_list = ['kimmer1912@gmail.com']
+        recipient_list = ['kinny3355@gmail.com']
         send_mail(subject, message, settings.EMAIL_HOST_USER, recipient_list)
 
 
@@ -404,7 +404,7 @@ def send_admin_payment_notification(sender, instance, created, **kwargs):
             f"Status: {instance.status}\n"
             f"Timestamp: {format_timestamp(instance.timestamp)}\n"
         )
-        recipient_list = ['kimmer1912@gmail.com']
+        recipient_list = ['kinny3355@gmail.com']
         send_mail(subject, message, settings.EMAIL_HOST_USER, recipient_list)
 
 @receiver(post_save, sender=CryptoWITHDRAW)
@@ -424,6 +424,6 @@ def send_admin_crypto_withdrawal_notification(sender, instance, created, **kwarg
             f"Status: {instance.status}\n"
             f"Timestamp: {format_timestamp(instance.timestamp)}\n"
         )
-        recipient_list = ['kimmer1912@gmail.com']
+        recipient_list = ['kinny3355@gmail.com']
         send_mail(subject, message, settings.EMAIL_HOST_USER, recipient_list)
 
