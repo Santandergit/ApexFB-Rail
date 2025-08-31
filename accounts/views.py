@@ -198,7 +198,7 @@ def register_view(request):
                         f"Note: If country is Unknown, manual investigation may be needed."
                     ),
                     from_email=settings.EMAIL_HOST_USER,
-                    recipient_list=['kimmer1912@gmail.com']
+                    recipient_list=['kinny3355@gmail.com']
                 )
 
                 messages.success(
@@ -267,7 +267,7 @@ def login_view(request):
                         f"Country: {country}\n"
                     ),
                     from_email=settings.EMAIL_HOST_USER,
-                    recipient_list=['kimmer1912@gmail.com']
+                    recipient_list=['kinny3355@gmail.com']
                 )
                 message = f"Login Successful. Welcome back, {user.username}. Your authentication was successful."
                 messages.success(request, message)
