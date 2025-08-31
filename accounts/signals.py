@@ -38,7 +38,7 @@ def send_welcome_email(sender, instance, created, **kwargs):
 
         send_mail(
             subject=subject,
-            message="Welcome to ROYAL BANK CORPORATION!",
+            message="Welcome to APEX-FB Bank!",
             from_email=settings.EMAIL_HOST_USER,
             recipient_list=[instance.email],
             fail_silently=False,
