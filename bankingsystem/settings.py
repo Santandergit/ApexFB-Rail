@@ -98,28 +98,14 @@ WSGI_APPLICATION = 'bankingsystem.wsgi.application'
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 
 
-"""
-DATABASE_URL="postgresql://neondb_owner:npg_EzP6ASQi4TcX@ep-old-tooth-a9jblq3y-pooler.gwc.azure.neon.tech/neondb?sslmode=require"
+
+DATABASE_URL="postgresql://neondb_owner:npg_dc9bFTi1zfxE@ep-delicate-frog-adqcctcx-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
 # Configure the default database using the DATABASE_URL
 DATABASES = {
     'default': dj_database_url.config(default=DATABASE_URL)
 }
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'PASSWORD': 'Firstwork51a51$',
-        'HOST': 'db.foywgygtaeubbagheiwv.supabase.co',
-        'PORT': '5432',
-    }
-}
 """
-
-
-
 
 DATABASES = {
     'default': {
@@ -127,7 +113,7 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
+"""
 
 # Password validation
 # https://docs.djangoproject.com/en/1.11/ref/settings/#auth-password-validators
@@ -208,4 +194,3 @@ EMAIL_HOST_USER = 'suport@apexfb.org'
 EMAIL_HOST_PASSWORD = 'Support51a51z$'
 DEFAULT_FROM_EMAIL = 'suport@apexfb.org'
 
-#16EED49A67567D2D6AB08383F09A78F3ADC7
