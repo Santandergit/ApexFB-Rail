@@ -294,7 +294,7 @@ class WithdrawalAdmin(admin.ModelAdmin):
 admin.site.register(Withdrawal, WithdrawalAdmin)
 
 
-
+"""
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ['user', 'amount', 'payment_method', 'status', 'date']
     list_filter = ['status', 'date']
@@ -330,7 +330,7 @@ class CRYPWALLETSAdmin(admin.ModelAdmin):
     list_filter = ('bitcoin', 'ethereum')
     search_fields = ('bitcoin', 'ethereum')
 admin.site.register(CRYPWALLETS, CRYPWALLETSAdmin)
-
+"""
 
 @admin.register(MailSubscription)
 class MailSubscriptionAdmin(admin.ModelAdmin):
@@ -339,7 +339,7 @@ class MailSubscriptionAdmin(admin.ModelAdmin):
     list_filter = ('date_subscribed',)
     
 
-admin.site.register(Payment, PaymentAdmin)
+#admin.site.register(Payment, PaymentAdmin)
 admin.site.add_action(export_as_csv, name='export_selected')
 
 admin.site.register(SUPPORT)
