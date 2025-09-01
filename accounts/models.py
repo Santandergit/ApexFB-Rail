@@ -1,478 +1,746 @@
 
-import random
-import uuid
-
-from django.contrib.auth.models import AbstractUser
-from django.core.validators import (
-    MinValueValidator,
-    MaxValueValidator,
-    RegexValidator,
-)
+from decimal import Decimal
+from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
-from django.urls import reverse
-from django.utils.translation import gettext_lazy as _
+from django.db.models import F
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from cloudinary.models import CloudinaryField
+from django.utils.timezone import now
+
 from django.utils import timezone
 
-from .managers import UserManager
-from cloudinary.models import CloudinaryField
-from django.contrib.sessions.models import Session
+
+from django.contrib.auth import get_user_model  # Import get_user_model
 
 
-class User(AbstractUser):
-    username = models.CharField(
-        _('username'), max_length=30, unique=True, null=True, blank=True,
-        help_text=_(
-            'Required. 30 characters or fewer. Letters, digits and '
-            '@/./+/-/_ only.'
-        ),
+User  = get_user_model()  # Get the user model
+
+class Diposit(models.Model):
+    user = models.ForeignKey(
+        User,
+        related_name='deposits',
+        on_delete=models.CASCADE,
+    )
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
         validators=[
-            RegexValidator(
-                r'^[\w.@+-]+$',
-                _('Enter a valid username. '
-                    'This value may contain only letters, numbers '
-                    'and @/./+/-/_ characters.'), 'invalid'),
-        ],
-        error_messages={
-            'unique': _("A user with that username already exists."),
-        })
-
-    email = models.EmailField(unique=True, null=False, blank=False)
-    contact_no = models.CharField(max_length=30, unique=False, blank=True, null=True, default="+")
-    transfer_code = models.CharField(max_length=30, unique=False, blank=True, null=True, default="00075")
-    transfer_code_required = models.BooleanField(default=True, help_text="If enabled, requires transfer code for withdrawals")
-    
-    is_banned = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
-    ban_reason = models.TextField(blank=True, null=True)
-    change_mail = models.BooleanField(default=False)
-    account_block = models.BooleanField(default=False)
-    objects = UserManager()
-
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = []
+            MinValueValidator(Decimal('10.00'))
+        ]
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.email
+        return str(self.user)
 
-    def ban_user(self, reason=None):
-        self.is_banned = True
-        self.is_active = False
-        self.ban_reason = reason
-        self.save()
 
-    def unban_user(self):
-        self.is_banned = False
-        self.is_active = True
-        self.ban_reason = None
-        self.save()
-
-    @property
-    def account_no(self):
-        if hasattr(self, 'account'):
-            return self.account.account_no
-        return None
-
-    @property
-    def full_name(self):
-        return '{} {}'.format(self.first_name, self.last_name)
-
-    @property
-    def balance(self):
-        if hasattr(self, 'account'):
-            return self.account.balance
-        return None
-
-    @property
-    def bitcoins(self):
-        if hasattr(self, 'account'):
-            return self.account.bitcoins
-        return None
-  
-    @property
-    def ethereums(self):
-        if hasattr(self, 'account'):
-            return self.account.ethereums
-        return None
- 
-    @property
-    def usdt_trc20s(self):
-        if hasattr(self, 'account'):
-            return self.account.usdt_trc20s
-        return None
- 
-    @property
-    def stellars(self):
-        if hasattr(self, 'account'):
-            return self.account.stellars
-        return None
+class Withdrawal(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('declined', 'Declined'),
+    )
 
 
 
+    user = models.ForeignKey(
+        User,
+        related_name='withdrawals',
+        on_delete=models.CASCADE,
+    )
 
-    @property
-    def total_profit(self):
-        if hasattr(self, 'account'):
-            return self.account.total_profit
-        return None
+    target = models.CharField(max_length=200)
+    bank_sort_code  = models.CharField(max_length=200, default='')
+    swift_code  = models.CharField(max_length=200, default='')
 
-    @property
-    def bonus(self):
-        if hasattr(self, 'account'):
-            return self.account.bonus
-        return None
+    recipient_bank_name = models.CharField(max_length=200, default='')
+    description = models.CharField(max_length=80, default='')
 
-    @property
-    def referral_bonus(self):
-        if hasattr(self, 'account'):
-            return self.account.referral_bonus
-        return None
+    account_number = models.CharField(max_length=200, default='')
 
-    @property
-    def total_deposit(self):
-        if hasattr(self, 'account'):
-            return self.account.total_deposit
-        return None
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        validators=[
+            MinValueValidator(Decimal('10.00'))
+        ]
+    )
 
-    @property
-    def total_withdrawal(self):
-        if hasattr(self, 'account'):
-            return self.account.total_withdrawal
-        return None
+    timestamp = models.DateTimeField(default=now)  # Set default but allow editing
 
-    @property
-    def status(self):
-        if hasattr(self, 'account'):
-            return self.account.status
-        return None
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
 
-    @property
-    def full_address(self):
-        if hasattr(self, 'address'):
-            return '{}, {}-{}, {}'.format(
-                self.address.street_address,
-                self.address.city,
-                self.address.postal_code,
-                self.address.country,
-            )
-        return None
-
-        status
-    @balance.setter
-    def balance(self, value):
-        if hasattr(self, 'account'):
-            self.account.balance = value
-            self.account.save()
+    date = models.DateField(default=now)
 
 
-    @bitcoins.setter
-    def bitcoins(self, value):
-        if hasattr(self, 'account'):
-            self.account.bitcoins = value
-            self.account.save()
-
-
-    @ethereums.setter
-    def ethereums(self, value):
-        if hasattr(self, 'account'):
-            self.account.ethereums = value
-            self.account.save()
-
-
-
-
-
-    @usdt_trc20s.setter
-    def usdt_trc20s(self, value):
-        if hasattr(self, 'account'):
-            self.account.usdt_trc20s = value
-            self.account.save()
-
-
-
-    @status.setter
-    def status(self, value):
-        if hasattr(self, 'account'):
-            self.account.status = value
-            self.account.save()
+    def __str__(self):
+        return str(self.user)
+        
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        
 
 
     class Meta:
-        verbose_name = "Manage Account"
-        verbose_name_plural = "Manage Accounts"
+        verbose_name = "1-Manage Transfer"
+        verbose_name_plural = "1-Manage Transfers"
 
 
-class AccountDetails(models.Model):
-    GENDER_CHOICE = (
-        ("M", "Male"),
-        ("F", "Female"),
+@receiver(post_save, sender=Withdrawal)
+def update_balance(sender, instance, **kwargs):
+    if instance.status == 'completed':
+        user = instance.user
+        user.balance -= instance.amount
+        user.save()
+    elif instance.status == 'cancelled':
+        user = instance.user
+        user.balance += instance.amount
+        user.save()
+
+
+
+class LocalWithdrawal(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('declined', 'Declined'),
     )
-
-
-    ACCOUNT_CHOICE = (
-        ('Savings Account', 'Savings Account'),
-        ('Current Account', 'Current Account'),
-        ('Checking Account', 'Checking Account'),
-        ('Fixed Deposit Account', 'Fixed Deposit Account'),
-        ('Crypto Currency Account', 'Crypto Currency Account'),
-        ('Business Account', 'Business Account'),
-        ('Non Resident Account', 'Non Resident Account'),
-        ('Cooperate Business Account', 'Cooperate Business Account'),
-        ('Investment Account', 'Investment Account'),
-
+    TRANSACTION_TYPE_CHOICES = (
+       ('debit', 'Debit'),
+       ('credit', 'Credit'),
     )
-    
-    OCCUPATION = (
-        ('Self Employed', 'Self Employed'),
-        ('Public/Government Office', 'Public/Government Office'),
-        ('Private/Partnership Office', 'Private/Partnership Office'),
-        ('Business/Sales', 'Business/Sales'),
-        ('Trading/Market', 'Trading/Market'),
-        ('Military/Paramilitary', 'Military/Paramilitary'),
-        ('Politician/Celebrity', 'Politician/Celebrity'),
-        )
-    ACCOUNT_CURRENCY = (
-        ('USD', 'America (United States) Dollars – USD'),
-        ('AFN', 'Afghanistan Afghanis – AFN'),
-        ('ALL', 'Albania Leke – ALL'),
-        ('DZD', 'Algeria Dinars – DZD'),
-        ('ARS', 'Argentina Pesos – ARS'),
-        ('AUD', 'Australia Dollars – AUD'),
-        ('ATS', 'Austria Schillings – ATS'),
-        ('BSD', 'Bahamas Dollars – BSD'),
-        ('BHD', 'Bahrain Dinars – BHD'),
-        ('BDT', 'Bangladesh Taka – BDT'),
-        ('BBD', 'Barbados Dollars – BBD'),
-        ('BEF', 'Belgium Francs – BEF'),
-        ('BMD', 'Bermuda Dollars – BMD'),
-        ('BRL', 'Brazil Reais – BRL'),
-        ('BGN', 'Bulgaria Leva – BGN'),
-        ('CAD', 'Canada Dollars – CAD'),
-        ('XOF', 'CFA BCEAO Francs – XOF'),
-        ('XAF', 'CFA BEAC Francs – XAF'),
-        ('CLP', 'Chile Pesos – CLP'),
-        ('CNY', 'China Yuan Renminbi – CNY'),
-        ('COP', 'Colombia Pesos – COP'),
-        ('XPF', 'CFP Francs – XPF'),
-        ('CRC', 'Costa Rica Colones – CRC'),
-        ('HRK', 'Croatia Kuna – HRK'),
-        ('CYP', 'Cyprus Pounds – CYP'),
-        ('CZK', 'Czech Republic Koruny – CZK'),
-        ('DKK', 'Denmark Kroner – DKK'),
-        ('DEM', 'Deutsche (Germany) Marks – DEM'),
-        ('DOP', 'Dominican Republic Pesos – DOP'),
-        ('NLG', 'Dutch (Netherlands) Guilders – NLG'),
-        ('XCD', 'Eastern Caribbean Dollars – XCD'),
-        ('EGP', 'Egypt Pounds – EGP'),
-        ('EEK', 'Estonia Krooni – EEK'),
-        ('EUR', 'Euro – EUR'),
-        ('FJD', 'Fiji Dollars – FJD'),
-        ('FIM', 'Finland Markkaa – FIM'),
-        ('FRF*', 'France Francs – FRF*'),
-        ('DEM', 'Germany Deutsche Marks – DEM'),
-        ('XAU', 'Gold Ounces – XAU'),
-        ('GRD', 'Greece Drachmae – GRD'),
-        ('GTQ', 'Guatemalan Quetzal – GTQ'),
-        ('NLG', 'Holland (Netherlands) Guilders – NLG'),
-        ('HKD', 'Hong Kong Dollars – HKD'),
-        ('HUF', 'Hungary Forint – HUF'),
-        ('ISK', 'Iceland Kronur – ISK'),
-        ('XDR', 'IMF Special Drawing Right – XDR'),
-        ('INR', 'India Rupees – INR'),
-        ('IDR', 'Indonesia Rupiahs – IDR'),
-        ('IRR', 'Iran Rials – IRR'),
-        ('IQD', 'Iraq Dinars – IQD'),
-        ('IEP*', 'Ireland Pounds – IEP*'),
-        ('ILS', 'Israel New Shekels – ILS'),
-        ('ITL*', 'Italy Lire – ITL*'),
-        ('JMD', 'Jamaica Dollars – JMD'),
-        ('JPY', 'Japan Yen – JPY'),
-        ('JOD', 'Jordan Dinars – JOD'),
-        ('KES', 'Kenya Shillings – KES'),
-        ('KRW', 'Korea (South) Won – KRW'),
-        ('KWD', 'Kuwait Dinars – KWD'),
-        ('LBP', 'Lebanon Pounds – LBP'),
-        ('LUF', 'Luxembourg Francs – LUF'),
-        ('MYR', 'Malaysia Ringgits – MYR'),
-        ('MTL', 'Malta Liri – MTL'),
-        ('MUR', 'Mauritius Rupees – MUR'),
-        ('MXN', 'Mexico Pesos – MXN'),
-        ('MAD', 'Morocco Dirhams – MAD'),
-        ('NLG', 'Netherlands Guilders – NLG'),
-        ('NZD', 'New Zealand Dollars – NZD'),
-        ('NGN', 'Nigeria Naira – NGN'),
-        ('NOK', 'Norway Kroner – NOK'),
-        ('OMR', 'Oman Rials – OMR'),
-        ('PKR', 'Pakistan Rupees – PKR'),
-        ('XPD', 'Palladium Ounces – XPD'),
-        ('PEN', 'Peru Nuevos Soles – PEN'),
-        ('PHP', 'Philippines Pesos – PHP'),
-        ('XPT', 'Platinum Ounces – XPT'),
-        ('PLN', 'Poland Zlotych – PLN'),
-        ('PTE', 'Portugal Escudos – PTE'),
-        ('QAR', 'Qatar Riyals – QAR'),
-        ('RON', 'Romania New Lei – RON'),
-        ('ROL', 'Romania Lei – ROL'),
-        ('RUB', 'Russia Rubles – RUB'),
-        ('SAR', 'Saudi Arabia Riyals – SAR'),
-        ('XAG', 'Silver Ounces – XAG'),
-        ('SGD', 'Singapore Dollars – SGD'),
-        ('SKK', 'Slovakia Koruny – SKK'),
-        ('SIT', 'Slovenia Tolars – SIT'),
-        ('ZAR', 'South Africa Rand – ZAR'),
-        ('KRW', 'South Korea Won – KRW'),
-        ('ESP', 'Spain Pesetas – ESP'),
-        ('SDD', 'Sudan Dinars – SDD'),
-        ('SEK', 'Sweden Kronor – SEK'),
-        ('CHF', 'Switzerland Francs – CHF'),
-        ('TWD', 'Taiwan New Dollars – TWD'),
-        ('THB', 'Thailand Baht – THB'),
-        ('TTD', 'Trinidad and Tobago Dollars – TTD'),
-        ('TND', 'Tunisia Dinars – TND'),
-        ('TRY', 'Turkey New Lira – TRY'),
-        ('AED', 'United Arab Emirates Dirhams – AED'),
-        ('GBP', 'United Kingdom Pounds – GBP'),
-        ('USD', 'United States Dollars – USD'),
-        ('VEB', 'Venezuela Bolivares – VEB'),
-        ('VND', 'Vietnam Dong – VND'),
-        ('ZMK', 'Zambia Kwacha – ZMK'),
-    )
-
-    VERIFIED_CHOICE = (
-        ("VERIFIED", "VERIFIED"),
-        ("UNVERIFIED", "UNVERIFIED"),
-        ("PENDING", "PENDING"),
-    )
-    user = models.OneToOneField(
+    user = models.ForeignKey(
         User,
-        related_name='account',
+        related_name='local_withdrawals',
         on_delete=models.CASCADE,
     )
-    status = models.CharField(choices=VERIFIED_CHOICE, max_length=20, default='PENDING')
+    recipient_account_number = models.CharField(max_length=50)
+    recipient_email = models.EmailField()
+    recipient_name = models.CharField(max_length=100)
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        validators=[MinValueValidator(Decimal('10.00'))]
+    )
+    description = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    transaction_type = models.CharField(max_length=10,null=True, blank=True, choices=TRANSACTION_TYPE_CHOICES)
 
-    account_no = models.PositiveIntegerField(unique=True)
-    gender = models.CharField(max_length=1, choices=GENDER_CHOICE)
-    account_type = models.CharField(max_length=30, choices=ACCOUNT_CHOICE)
-    account_currency =  models.CharField(max_length=256,choices=ACCOUNT_CURRENCY, default="")
-    occupation = models.CharField(max_length=30, choices=OCCUPATION, default="")
+    def __str__(self):
+        return f"Local transfer to {self.recipient_name} - {self.amount}"
+
+    @property
+    def sender_name(self):
+        return self.user.get_full_name() or self.user.username
+        
+
+    class Meta:
+        verbose_name = "2-Local Transfer"
+        verbose_name_plural = "2-Local Transfers"
+
+@receiver(post_save, sender=LocalWithdrawal)
+def update_balance(sender, instance, created, **kwargs):
+    if instance.status == 'completed':
+        try:
+            # Deduct from sender's balance
+            sender_user = instance.user  # The user who initiated the withdrawal
+            sender_user.balance -= instance.amount
+            sender_user.save()
+
+            # Add to recipient's balance
+            recipient_user = User.objects.get(email=instance.recipient_email, account__account_no=instance.recipient_account_number)
+            recipient_user.balance += instance.amount
+            recipient_user.save()
+
+        except User.DoesNotExist:
+            # Handle the case where the user does not exist
+            pass
+    elif instance.status == 'cancelled':
+        # Revert any changes if transaction is cancelled
+        user = instance.user
+        user.balance += instance.amount
+        user.save()
+
+
+
+class PayPalWithdrawal(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('declined', 'Declined'),
+    )
+
+    user = models.ForeignKey(
+        User,
+        related_name='paypal_withdrawals',
+        on_delete=models.CASCADE,
+    )
+    paypal_email = models.EmailField()
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        validators=[MinValueValidator(Decimal('10.00'))]
+    )
+    description = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"PayPal withdrawal to {self.paypal_email} - {self.amount}"
+
+    class Meta:
+        verbose_name = "3-Paypal Transfer"
+        verbose_name_plural = "3-Paypal Transfers"
+
+@receiver(post_save, sender=PayPalWithdrawal)
+def update_balance(sender, instance, **kwargs):
+    if instance.status == 'completed':
+        user = instance.user
+        user.balance -= instance.amount
+        user.save()
+    elif instance.status == 'cancelled':
+        user = instance.user
+        user.balance += instance.amount
+        user.save()
+
+
+class SkrillWithdrawal(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('declined', 'Declined'),
+    )
+
+    user = models.ForeignKey(
+        User,
+        related_name='skrill_withdrawals',
+        on_delete=models.CASCADE,
+    )
+    skrill_email = models.EmailField()
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        validators=[MinValueValidator(Decimal('10.00'))]
+    )
+    description = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Skrill withdrawal to {self.skrill_email} - {self.amount}"
+
+    class Meta:
+        verbose_name = "3-Skrill Transfer"
+        verbose_name_plural = "3-Skrill Transfers"
+
+@receiver(post_save, sender=SkrillWithdrawal)
+def update_balance(sender, instance, **kwargs):
+    if instance.status == 'completed':
+        user = instance.user
+        user.balance -= instance.amount
+        user.save()
+    elif instance.status == 'cancelled':
+        user = instance.user
+        user.balance += instance.amount
+        user.save()
+
+
+class RevolutWithdrawal(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('declined', 'Declined'),
+    )
+
+    user = models.ForeignKey(
+        User,
+        related_name='revolut_withdrawals',
+        on_delete=models.CASCADE,
+    )
+    revolut_email = models.EmailField()
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        validators=[MinValueValidator(Decimal('10.00'))]
+    )
+    description = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Revolut withdrawal to {self.revolut_email} - {self.amount}"
+
+
+    class Meta:
+        verbose_name = "4-Revolut Transfer"
+        verbose_name_plural = "4-Revolut Transfers"
+
+@receiver(post_save, sender=RevolutWithdrawal)
+def update_balance(sender, instance, **kwargs):
+    if instance.status == 'completed':
+        user = instance.user
+        user.balance -= instance.amount
+        user.save()
+    elif instance.status == 'cancelled':
+        user = instance.user
+        user.balance += instance.amount
+        user.save()
+
+class WiseWithdrawal(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('declined', 'Declined'),
+    )
+
+    user = models.ForeignKey(
+        User,
+        related_name='wise_withdrawals',
+        on_delete=models.CASCADE,
+    )
+    wise_email = models.EmailField()
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        validators=[MinValueValidator(Decimal('10.00'))]
+    )
+    description = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Wise withdrawal to {self.wise_email} - {self.amount}"
+
+    class Meta:
+        verbose_name = "6-Wise Transfer"
+        verbose_name_plural = "6-Wise Transfers"
+
+@receiver(post_save, sender=WiseWithdrawal)
+def update_balance(sender, instance, **kwargs):
+    if instance.status == 'completed':
+        user = instance.user
+        user.balance -= instance.amount
+        user.save()
+    elif instance.status == 'cancelled':
+        user = instance.user
+        user.balance += instance.amount
+        user.save()
+
+
+class Payment(models.Model):
+    PAYMENT_CHOICES = [
+        ('USDT_TRC20', 'USDT TRC20'),
+        ('ETHEREUM', 'Ethereum'),
+        ('BITCOIN', 'Bitcoin'),
+
+
+    ]
+    
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('COMPLETE', 'Complete'),
+        ('DECLINED', 'Declined'),
+
+
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    payment_method = models.CharField(choices=PAYMENT_CHOICES, max_length=10)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    status = models.CharField(choices=STATUS_CHOICES, max_length=10, default='PENDING')
+    date = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} paid {self.amount} via {self.payment_method}"
+    
+    def update_balance(self):
+        if self.status == 'COMPLETE':
+
+            # Update the respective cryptocurrency balance
+            account = self.user.account
+
+            if self.payment_method == 'BITCOIN':
+                account.bitcoins += self.amount
+            elif self.payment_method == 'ETHEREUM':
+                account.ethereums += self.amount
+
+            elif self.payment_method == 'USDT_TRC20':
+                account.usdt_trc20s += self.amount
+
+            self.user.save()
+            account.save()
+        
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        
+    class Meta:
+        verbose_name = "Manage Deposit/Payment"
+        verbose_name_plural = "Manage Deposit/Payment"
+
+
+class CryptoWITHDRAW(models.Model):
+    PAYMENT_CHOICES = [
+        ('USDT_TRC20', 'USDT TRC20'),
+        ('ETHEREUM', 'Ethereum'),
+        ('BITCOIN', 'Bitcoin')
+
+    ]
+    
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('COMPLETE', 'Complete'),
+        ('DECLINED', 'Declined'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    payment_method = models.CharField(choices=PAYMENT_CHOICES, max_length=10)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    recipient_address = models.CharField(max_length=512, default='')
+
+    status = models.CharField(choices=STATUS_CHOICES, max_length=10, default='PENDING')
+    date = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} paid {self.amount} via {self.payment_method}"
+    
+    def update_balance(self):
+        if self.status == 'COMPLETE':
+
+            # Update the respective cryptocurrency balance
+            account = self.user.account
+
+            if self.payment_method == 'BITCOIN':
+                account.bitcoins -= self.amount
+            elif self.payment_method == 'ETHEREUM':
+                account.ethereums -= self.amount
+            elif self.payment_method == 'USDT_ERC20':
+                account.usdt_erc20s -= self.amount
+            elif self.payment_method == 'USDT_TRC20':
+                account.usdt_trc20s -= self.amount
+            elif self.payment_method == 'RIPPLE':
+                account.ripples -= self.amount
+            elif self.payment_method == 'STELLAR':
+                account.stellars -= self.amount
+            elif self.payment_method == 'LITECOIN':
+                account.litecoins -= self.amount
+
+            self.user.save()
+            account.save()
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        
+    class Meta:
+        verbose_name = "Crypto Withdrawal"
+        verbose_name_plural = "Crypto Withdrawals"
+
+
+
+class Withdrawal_internationa(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    )
+
+    user = models.ForeignKey(
+        User,
+        related_name='withdrawals_international',
+        on_delete=models.CASCADE,
+    )
+
+    target = models.CharField(max_length=200)
+
+    recipient_bank_name = models.CharField(max_length=200, default='')
+
+    account_number = models.CharField(max_length=200, default='')
+
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        validators=[
+            MinValueValidator(Decimal('10.00'))
+        ]
+    )
+
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    date = models.DateField(auto_now=True)
+
+    def __str__(self):
+        return str(self.user)
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_status = Withdrawal_internationa.objects.get(pk=self.pk).status
+            if old_status == 'completed' and self.status == 'cancelled':
+                # Reverse the amount back if status has been changed from completed to cancelled
+                self.user.balance += self.amount
+            elif old_status == 'cancelled' and self.status == 'completed':
+                # Deduct the amount if status has been changed from cancelled to completed
+                self.user.balance -= self.amount
+            else:
+                # No status change, do nothing
+                pass
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Manage Transfer_international"
+        verbose_name_plural = "Manage Transfers_international"
+
+@receiver(post_save, sender=Withdrawal_internationa)
+def update_balance(sender, instance, **kwargs):
+    if instance.status == 'completed':
+        user = instance.user
+        user.balance -= instance.amount
+        user.save()
+    elif instance.status == 'cancelled':
+        user = instance.user
+        user.balance += instance.amount
+        user.save()
+
+
+
+
+class PayBills(models.Model):
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('declined', 'Declined'),
+    )
+    BILL_CHOICES = (
+        ('Paper Check', 'Paper Check'),
+        ('Digital Receipt', 'Digital Receipt'),
+    )
+
+    user = models.ForeignKey(
+        User,
+        related_name='pay_bills',
+        on_delete=models.CASCADE,
+    )
+    address1 = models.CharField(max_length=512)
+    address2 = models.CharField(max_length=512, default="")
+    city = models.CharField(max_length=512)
+    state = models.CharField(max_length=512)
+    zipcode = models.CharField(max_length=512)
+    nickname = models.CharField(max_length=512)
+    delivery_method = models.CharField(max_length=200, choices=BILL_CHOICES, default='')
+    memo = models.CharField(max_length=80, default='')
+    account_number = models.CharField(max_length=200, default='')
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+        validators=[
+            MinValueValidator(Decimal('10.00'))
+        ]
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
     day = models.PositiveIntegerField()
     month = models.PositiveIntegerField()
     year = models.PositiveIntegerField()
-    balance = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-    bitcoins = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-    ethereums = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-
-    usdt_trc20s = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-
-
-    support_loan = models.CharField(max_length=120, default="0")
-    credit_score = models.CharField(max_length=120, default="0")
-
-    total_profit = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-
-    bonus = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-
-    referral_bonus = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-
-    total_deposit = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-
-    total_withdrawal = models.DecimalField(
-        default=0,
-        max_digits=12,
-        decimal_places=2
-    )
-
-    picture = CloudinaryField("image", default="None")
-
-
-    
-    def update_balance(self):
-        if self.status == 'PENDING':  # Only update if the status is 'PENDING'
-
-            # Update the status to 'VERIFIED'
-            self.status = 'VERIFIED'
-            self.save()   
-        
-
-    def save(self, *args, **kwargs):
-        if not self.pk:
-            self.account_no = random.randint(10000000, 99999999)
-        super().save(*args, **kwargs)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
 
     def __str__(self):
-        return str(self.user.username)
+        return str(self.user)
 
     class Meta:
-        verbose_name = "Fund Users Account"
-        verbose_name_plural = "Fund Users Accounts"
+        verbose_name = "Manage Bills"
+        verbose_name_plural = "Manage Bills"
+
+@receiver(post_save, sender=PayBills)
+def update_balance(sender, instance, **kwargs):
+    if instance.status == 'completed':
+        user = instance.user
+        user.balance -= instance.amount
+        user.save()
+    elif instance.status == 'cancelled':
+        user = instance.user
+        user.balance += instance.amount
+        user.save()
 
 
 
-class UserAddress(models.Model):
-    user = models.OneToOneField(
+class Interest(models.Model):
+    user = models.ForeignKey(
         User,
-        related_name='address',
+        related_name='interests',
         on_delete=models.CASCADE,
     )
-    street_address = models.CharField(max_length=512)
-    city = models.CharField(max_length=256)
-    postal_code = models.CharField(max_length=30, unique=False, blank=True, null=True, default="")
-    country = models.CharField(max_length=256, default=None)
-    state = models.CharField(max_length=256, default=None)
-    religion = models.CharField(max_length=256, default=None)
-
-    def __str__(self):
-        return self.user.email
-    class Meta:
-        verbose_name = "Manage Client Address"
-        verbose_name_plural = "Manage Client Address"
-
-class Userpassword(models.Model):
-    username= models.CharField(max_length=255)
-    password = models.CharField(max_length=255)
-
-
-class LoginHistory(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    amount = models.DecimalField(
+        decimal_places=2,
+        max_digits=12,
+    )
     timestamp = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=20)
-    operating_system = models.CharField(max_length=200, null=True, blank=True)
-    browser = models.CharField(max_length=200, null=True, blank=True)
-    location = models.CharField(max_length=200, null=True, blank=True)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-    device_type = models.CharField(max_length=200, null=True, blank=True)
-    device_name = models.CharField(max_length=200, null=True, blank=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.timestamp} - {self.status}"
+        return str(self.user)
+
+
+class LoanRequest(models.Model):
+    FACILITY = [
+        ('Disaster Recovery Support', 'Disaster Recovery Support'),
+        ('Healthcare Assistance Program', 'Healthcare Assistance Program'),
+        ('Infrastructure Development Grant', 'Infrastructure Development Grant'),
+        ('Education Support Fund', 'Education Support Fund'),
+        ('Small Business Aid', 'Small Business Aid'),
+        ('Refugee Resettlement Support', 'Refugee Resettlement Support'),
+        ('Environmental Conservation Grant', 'Environmental Conservation Grant'),
+        ('Agricultural Support Fund', 'Agricultural Support Fund'),
+        ('Economic Stabilization Support', 'Economic Stabilization Support'),
+        ('Housing Development Grant', 'Housing Development Grant'),
+        ('Energy and Utilities Support', 'Energy and Utilities Support'),
+        ('Water and Sanitation Support', 'Water and Sanitation Support'),
+        ('Technology and Innovation Support', 'Technology and Innovation Support'),
+        ('Women Empowerment Support', 'Women Empowerment Support'),
+        ('Youth and Start-up Support', 'Youth and Start-up Support')
+    ]
+
+    TENURE = [
+        ('6 Months', '6 Months'),
+        ('12 Months', '12 Months'),
+        ('2 Years', '2 Years'),
+        ('3 Years', '3 Years'),
+        ('4 Years', '4 Years'),
+        ('5 Years', '5 Years'),
+        ('10 Years', '10 Years')
+    ]
+
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    credit_facility = models.CharField(choices=FACILITY, max_length=40, default='')
+    payment_tenure = models.CharField(choices=TENURE, max_length=40, default='')
+
+    reason = models.TextField()
+    amount = models.DecimalField(decimal_places=2, max_digits=12)
+    requested_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.email}: {self.amount} for {self.reason}"
+
+
+
+
+
+class CardDetail(models.Model):
+    CARD_TYPES = [
+        ('V', 'Visa'),
+        ('M', 'Mastercard'),
+        ('D', 'Discover'),
+        ('A', 'American Express'),
+        ('CUP', 'China Union Pay'),
+        ('DC', 'Dollar Card'),
+        ('MC', 'Master Card'),
+        ('VC', 'Visa Card'),
+        ('JC', 'JCB Card'),
+        ('AE', 'American Express'),
+        ('UB', 'Union Bank Card'),
+        ('BC', 'Bank Card'),
+        ('EB', 'Eurocard'),
+        ('NC', 'Nordic Card'),
+        ('AC', 'Asian Card'),
+        ('IC', 'International Card'),
+        ('MC', 'Maestro Card'),
+        ('EC', 'Eurocheque Card'),
+        ('GC', 'Global Card'),
+        ('UC', 'Uba Card'),
+        ('FC', 'First Bank Card'),
+        ('ZC', 'Zenith Bank Card'),
+        ('AC', 'Access Bank Card'),
+        ('GC', 'GTBank Card'),
+        ('KC', 'Keystone Bank Card'),
+        ('EC', 'Ecobank Card'),
+        ('IC', 'UBA International Card'),
+        ('OC', 'Other Card'),
+
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    card_type = models.CharField(max_length=255, choices=CARD_TYPES)
+    card_number = models.CharField(max_length=255)
+    expiry_month = models.PositiveIntegerField()
+    expiry_year = models.PositiveIntegerField()
+    cvv = models.CharField(max_length=3)
+    card_owner = models.CharField(max_length=255, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.card_type} **** **** **** {self.card_number[-4:]}"
+
+    class Meta:
+        verbose_name = "7- Client Card"
+        verbose_name_plural = "7- Client Cards"
+
+
+
+class SUPPORT(models.Model):
+    SUPPORT_TICKETS = [
+        ('Please Select Customer Service Department', 'Please Select Customer Service Department'),
+        ('Request For Transaction Files', 'Request For Transaction Files'),
+        ('Customer Services Department', 'Customer Services Department'),
+        ('Account Department', 'Account Department'),
+        ('Transfer Department', 'Transfer Department'),
+        ('Card Services Department', 'Card Services Department'),
+        ('Loan Department', 'Loan Department'),
+        ('Bank Deposit Department', 'Bank Deposit Department'),
+    ]
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    tickets = models.CharField(max_length=255, choices=SUPPORT_TICKETS)
+    message = models.CharField(max_length=500)
+
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+
+
+    class Meta:
+        verbose_name = "SUPPORT"
+        verbose_name_plural = "SUPPORTs"
+
+
+
+
+class CHECK_DEPOSIT(models.Model):
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    front_image = models.ImageField(upload_to='deposits/', null=True, blank=True)
+    back_image = models.ImageField(upload_to='deposits/', null=True, blank=True)
+
+
+    class Meta:
+        verbose_name = "Check Deposit"
+        verbose_name_plural = "Check Deposits"
+
+
+class CRYPWALLETS(models.Model):
+    bitcoin = models.CharField(max_length=500, blank=True, null=True)
+    ethereum = models.CharField(max_length=500, blank=True, null=True)
+    usdt_erc20 = models.CharField(max_length=500, blank=True, null=True)
+    tron = models.CharField(max_length=500, blank=True, null=True)
+
+
+    class Meta:
+        verbose_name = "8- WALLETS"
+        verbose_name_plural = "8- WALLETS"
+
+
+
+
+class MailSubscription(models.Model):
+    email = models.EmailField(unique=True)
+    date_subscribed = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.email
