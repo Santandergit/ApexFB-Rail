@@ -85,8 +85,8 @@ class Withdrawal(models.Model):
 
 
     class Meta:
-        verbose_name = "3-Manage Transfer"
-        verbose_name_plural = "3-Manage Transfers"
+        verbose_name = "1-Manage Transfer"
+        verbose_name_plural = "1-Manage Transfers"
 
 
 @receiver(post_save, sender=Withdrawal)
@@ -138,6 +138,11 @@ class LocalWithdrawal(models.Model):
     def sender_name(self):
         return self.user.get_full_name() or self.user.username
         
+
+    class Meta:
+        verbose_name = "2-Local Transfer"
+        verbose_name_plural = "2-Local Transfers"
+
 @receiver(post_save, sender=LocalWithdrawal)
 def update_balance(sender, instance, created, **kwargs):
     if instance.status == 'completed':
@@ -189,6 +194,10 @@ class PayPalWithdrawal(models.Model):
     def __str__(self):
         return f"PayPal withdrawal to {self.paypal_email} - {self.amount}"
 
+    class Meta:
+        verbose_name = "3-Paypal Transfer"
+        verbose_name_plural = "3-Paypal Transfers"
+
 @receiver(post_save, sender=PayPalWithdrawal)
 def update_balance(sender, instance, **kwargs):
     if instance.status == 'completed':
@@ -226,6 +235,10 @@ class SkrillWithdrawal(models.Model):
 
     def __str__(self):
         return f"Skrill withdrawal to {self.skrill_email} - {self.amount}"
+
+    class Meta:
+        verbose_name = "3-Skrill Transfer"
+        verbose_name_plural = "3-Skrill Transfers"
 
 @receiver(post_save, sender=SkrillWithdrawal)
 def update_balance(sender, instance, **kwargs):
@@ -266,6 +279,10 @@ class RevolutWithdrawal(models.Model):
         return f"Revolut withdrawal to {self.revolut_email} - {self.amount}"
 
 
+    class Meta:
+        verbose_name = "4-Revolut Transfer"
+        verbose_name_plural = "4-Revolut Transfers"
+
 @receiver(post_save, sender=RevolutWithdrawal)
 def update_balance(sender, instance, **kwargs):
     if instance.status == 'completed':
@@ -303,6 +320,9 @@ class WiseWithdrawal(models.Model):
     def __str__(self):
         return f"Wise withdrawal to {self.wise_email} - {self.amount}"
 
+    class Meta:
+        verbose_name = "6-Wise Transfer"
+        verbose_name_plural = "6-Wise Transfers"
 
 @receiver(post_save, sender=WiseWithdrawal)
 def update_balance(sender, instance, **kwargs):
@@ -660,8 +680,8 @@ class CardDetail(models.Model):
         return f"{self.card_type} **** **** **** {self.card_number[-4:]}"
 
     class Meta:
-        verbose_name = "Client Card"
-        verbose_name_plural = "Client Cards"
+        verbose_name = "7- Client Card"
+        verbose_name_plural = "7- Client Cards"
 
 
 
@@ -712,8 +732,8 @@ class CRYPWALLETS(models.Model):
 
 
     class Meta:
-        verbose_name = "WALLETS"
-        verbose_name_plural = "WALLETS"
+        verbose_name = "8- WALLETS"
+        verbose_name_plural = "8- WALLETS"
 
 
 
