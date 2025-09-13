@@ -14,7 +14,7 @@ os.environ['SSL_CERT_FILE'] = certifi.where()
 BASE_DIR = Path(__file__).resolve().parent.parent
 CSRF_TRUSTED_ORIGINS = [
     "https://web-production-7bca.up.railway.app",
-    "https://www.apexfb.org/"
+    "https://www.apexfb.org",
 ]
 
 # SECURITY WARNING: keep the secret key used in production secret!
