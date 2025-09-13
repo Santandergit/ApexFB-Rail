@@ -29,22 +29,6 @@ def create_account_no(sender, instance, *args, **kwargs):
             instance.account_no = 10000000
 
 
-
-@receiver(post_save, sender=User)
-def send_welcome_email(sender, instance, created, **kwargs):
-    if created:
-        subject = 'Welcome'
-        message = render_to_string('accounts/emails/welcome_email.html', {'user': instance})
-
-        send_mail(
-            subject=subject,
-            message="Welcome to APEX-FB Bank!",
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[instance.email],
-            fail_silently=False,
-            html_message=message  # Send the HTML email
-        )
-
 @receiver(post_save, sender=User)
 def terminate_sessions(sender, instance, **kwargs):
     if instance.is_banned:
