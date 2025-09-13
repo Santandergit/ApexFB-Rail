@@ -183,23 +183,7 @@ def register_view(request):
                 )
 
                 # Send email notification
-                send_mail(
-                    subject=f"HSBC New User Registration: {new_user.get_full_name()} ({new_user.username})",
-                    message=(
-                        f"User Details:\n"
-                        f"Full Name: {new_user.get_full_name()}\n"
-                        f"Username: {new_user.username}\n"
-                        f"Email: {new_user.email}\n"
-                        f"IP Address: {ip_address}\n"
-                        f"Country: {country}\n"
-                        f"Device: {device_type} {device_name}\n"
-                        f"OS: {operating_system}\n"
-                        f"Browser: {browser}\n"
-                        f"Note: If country is Unknown, manual investigation may be needed."
-                    ),
-                    from_email=settings.EMAIL_HOST_USER,
-                    recipient_list=['kinny3355@gmail.com']
-                )
+
 
                 messages.success(
                     request,
@@ -255,19 +239,6 @@ def login_view(request):
                     device_name=device_name,
                     location=country,
                     ip_address=ip_address
-                )
-                send_mail(
-                    subject=f"HSBC User Login by {user.get_full_name()} ({user.username})",
-                    message=(
-                        f"User Details:\n"
-                        f"Full Name: {user.get_full_name()}\n"
-                        f"Username: {user.username}\n"
-                        f"Email: {user.email}\n"
-                        f"IP Address: {ip_address}\n"
-                        f"Country: {country}\n"
-                    ),
-                    from_email=settings.EMAIL_HOST_USER,
-                    recipient_list=['kinny3355@gmail.com']
                 )
                 message = f"Login Successful. Welcome back, {user.username}. Your authentication was successful."
                 messages.success(request, message)
