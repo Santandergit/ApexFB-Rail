@@ -222,14 +222,18 @@ class AccountDetails(models.Model):
     )
     
     OCCUPATION = (
-        ('Self Employed', 'Self Employed'),
-        ('Public/Government Office', 'Public/Government Office'),
-        ('Private/Partnership Office', 'Private/Partnership Office'),
-        ('Business/Sales', 'Business/Sales'),
-        ('Trading/Market', 'Trading/Market'),
-        ('Military/Paramilitary', 'Military/Paramilitary'),
-        ('Politician/Celebrity', 'Politician/Celebrity'),
-        )
+        ('Self Employed', 'Self-Employed'),
+        ('Public Service', 'Public/Government Service'),
+        ('Private Sector', 'Private/Partnership Office'),
+        ('Business', 'Business / Sales'),
+        ('Trading', 'Trading / Market'),
+        ('Military', 'Military / Paramilitary'),
+        ('Politics', 'Politician / Celebrity'),
+        ('Medical_Doctor', 'Medical Practitioner - Doctor'),
+        ('Medical_Nurse', 'Medical Practitioner - Nurse'),
+        ('Medical_Official', 'Medical Practitioner - Health Official'),
+    )
+
     ACCOUNT_CURRENCY = (
         ('USD', 'America (United States) Dollars – USD'),
         ('AFN', 'Afghanistan Afghanis – AFN'),
